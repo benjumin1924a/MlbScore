@@ -5,7 +5,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],esc
 export function taipeiDay(date=new Date()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(date)}
 export function shiftDay(day,n){return new Date(Date.parse(day+'T12:00:00Z')+n*86400000).toISOString().slice(0,10)}
 export function recentGames(games,id,cutoff){return games.filter(g=>g.status.abstractGameState==='Final'&&Date.parse(g.gameDate)<cutoff&&[g.teams.home.team.id,g.teams.away.team.id].includes(id)).sort((a,b)=>Date.parse(b.gameDate)-Date.parse(a.gameDate)||b.gamePk-a.gamePk).slice(0,10)}
-async function api(path,signal){const r=await fetch(API+path,{signal});if(!r.ok)throw new Error('MLB 資料暫時無法取得');return r.json()}
+const apiCache=new Map();
+function cacheTtl(path){if(path.includes('/linescore'))return 0;if(path.includes('stats=season')||path.includes('stats=gameLog'))return 30*60_000;if(path.startsWith('/schedule'))return 5*60_000;if(path.startsWith('/standings'))return 2*60_000;return 60_000}
+async function api(path,signal){const ttl=cacheTtl(path),cached=apiCache.get(path);if(ttl&&cached&&Date.now()-cached.savedAt<ttl)return cached.data;const r=await fetch(API+path,{signal});if(!r.ok)throw new Error('MLB 資料暫時無法取得');const data=await r.json();if(ttl)apiCache.set(path,{data,savedAt:Date.now()});return data}
 const flatten=d=>(d.dates||[]).flatMap(d=>d.games),time=d=>new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(d));
 let controller,sequence=0,standingsLoaded=false,selectedLeague='103',focusRun=0,focusItems=[];
 const logo=id=>`https://www.mlbstatic.com/team-logos/${id}.svg`,headshot=id=>`https://img.mlbstatic.com/mlb-photos/image/upload/w_96,q_auto:best/v1/people/${id}/headshot/67/current`;
